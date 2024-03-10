@@ -3,6 +3,14 @@ use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::peripherals::Peripherals;
 
+// Wi-Fi
+use esp_idf_svc::eventloop::*;
+use esp_idf_svc::netif::*;
+use esp_idf_svc::nvs::EspDefaultNvsPartition;
+use esp_idf_svc::wifi::EspWifi;
+use esp_idf_svc::wifi::*;
+use heapless::String as HLString;
+
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
     let stages = [6, 2, 8]; // Seconds.
@@ -15,6 +23,14 @@ fn main_logic() -> Result<()> {
     let mut led1 = PinDriver::output(peripherals.pins.gpio16)?;
     let mut led2 = PinDriver::output(peripherals.pins.gpio4)?;
     let mut led3 = PinDriver::output(peripherals.pins.gpio0)?;
+
+    let sysloop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
+    let mut wifi = BlockingWifi::wrap(
+        EspWifi::new(peripherals.modem, sysloop.clone(), Some(nvs))?,
+        sysloop,
+    )?;
+    connect_wifi(&mut wifi)?;
 
     loop {
         let now = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)?;
@@ -56,4 +72,30 @@ fn main() -> Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     main_logic()
+}
+
+fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
+    let wifi_ssid: HLString<32> = HLString::try_from("ALOIZIO-5G").unwrap();
+    let wifi_password: HLString<64> = HLString::try_from("21072107").unwrap();
+
+    let wifi_configuration: Configuration = Configuration::Client(ClientConfiguration {
+        ssid: wifi_ssid,
+        bssid: None,
+        auth_method: AuthMethod::None,
+        password: wifi_password,
+        channel: None,
+    });
+
+    wifi.set_configuration(&wifi_configuration)?;
+
+    wifi.start()?;
+    log::info!("Wifi started");
+
+    wifi.connect()?;
+    log::info!("Wifi connected");
+
+    wifi.wait_netif_up()?;
+    log::info!("Wifi netif up");
+
+    Ok(())
 }

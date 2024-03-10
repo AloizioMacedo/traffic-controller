@@ -27,6 +27,8 @@ embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-
 log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.48", default-features = false }
 anyhow = "1.0.80"
+esp-idf-sys = "0.34.1"
+heapless = "0.8.0"
 
 [build-dependencies]
 embuild = "0.31.3"
