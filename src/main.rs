@@ -5,19 +5,34 @@ use esp_idf_svc::hal::peripherals::Peripherals;
 
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
+    let stages = [6, 2, 8]; // Seconds.
     let peripherals = Peripherals::take()?;
-    let mut led = PinDriver::output(peripherals.pins.gpio4)?;
+    let mut led1 = PinDriver::output(peripherals.pins.gpio16)?;
+    let mut led2 = PinDriver::output(peripherals.pins.gpio4)?;
+    let mut led3 = PinDriver::output(peripherals.pins.gpio0)?;
 
-    for x in (0..2).cycle() {
-        if x == 0 {
-            log::info!("High!");
-            _ = led.set_high();
+    for (i, dur) in stages.iter().enumerate().cycle() {
+        if i == 0 {
+            _ = led2.set_low();
+            _ = led3.set_low();
+            _ = led1.set_high();
+
+            log::info!("red");
+        } else if i == 1 {
+            _ = led1.set_low();
+            _ = led3.set_low();
+            _ = led2.set_high();
+
+            log::info!("yellow");
         } else {
-            log::info!("Low!");
-            _ = led.set_low();
+            _ = led1.set_low();
+            _ = led2.set_low();
+            _ = led3.set_high();
+
+            log::info!("green");
         }
 
-        FreeRtos::delay_ms(1000);
+        FreeRtos::delay_ms(dur * 1000);
     }
 
     Ok(())
