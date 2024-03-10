@@ -8,7 +8,7 @@ use std::ptr;
 // Wi-Fi
 use esp_idf_svc::eventloop::*;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
-use esp_idf_svc::sntp::{self, EspSntp, SyncStatus};
+use esp_idf_svc::sntp::{self, EspSntp, SntpConf, SyncStatus};
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
 use esp_idf_sys::time_t;
@@ -60,11 +60,15 @@ fn main_logic() -> Result<()> {
     )?;
     connect_wifi(&mut wifi)?;
 
-    let sntp = sntp::EspSntp::new_default()?;
+    let conf = SntpConf {
+        operating_mode: sntp::OperatingMode::Poll,
+        sync_mode: sntp::SyncMode::Smooth,
+        ..Default::default()
+    };
+    let esp_sntp = sntp::EspSntp::new(&conf)?;
 
-    wait_until_time_is_synched(&sntp);
+    wait_until_time_is_synched(&esp_sntp);
 
-    let mut last_update = std::time::SystemTime::now();
     let mut stage_idx = None;
 
     loop {
@@ -112,17 +116,6 @@ fn main_logic() -> Result<()> {
             } else {
                 stage_idx = Some(2);
             }
-        }
-
-        // Attempt to solve sync issues.
-        if let Ok(time_since_last_update) = last_update.elapsed() {
-            if time_since_last_update > std::time::Duration::from_secs(60) {
-                _ = sntp::EspSntp::new_default().map_err(|e| log::info!("failed to sync: {e}"));
-                log::info!("time synchronization finished");
-                last_update = now;
-            }
-        } else {
-            log::info!("failed to synchronize due to last_update being later than current time.")
         }
 
         FreeRtos::delay_ms(100);
