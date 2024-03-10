@@ -1,34 +1,37 @@
 {
-    "version": 1,
-    "editor": "wokwi",
-    "author": "AloizioMacedo <atsam2@hotmail.com>",
-    "parts": [
-        {
-            "type": "board-esp32-devkit-c-v4",
-            "id": "esp",
-            "top": 0.59,
-            "left": 0.67,
-            "attrs": {
-                "flashSize": "16"
-            }
-        }
-    ],
-    "connections": [
-        [
-            "esp:TX",
-            "$serialMonitor:RX",
-            "",
-            []
-        ],
-        [
-            "esp:RX",
-            "$serialMonitor:TX",
-            "",
-            []
-        ]
-    ],
-    "serialMonitor": {
-        "display": "terminal",
-        "convertEol": true
+  "version": 1,
+  "author": "Sergio Gasquez Arcos",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0.67,
+      "attrs": { "builder": "rust-std-esp" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 138.35,
+      "left": 124.8,
+      "attrs": { "value": "1000" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 34.8,
+      "left": 176.6,
+      "attrs": { "color": "red", "flip": "" }
     }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:GND.3", "led1:C", "black", [ "h0" ] ],
+    [ "led1:A", "r1:2", "green", [ "v0" ] ],
+    [ "esp:4", "r1:1", "green", [ "h0" ] ]
+  ],
+  "serialMonitor": { "display": "terminal" },
+  "dependencies": {}
 }
