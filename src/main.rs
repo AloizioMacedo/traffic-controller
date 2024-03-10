@@ -2,18 +2,27 @@ use anyhow::Result;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::peripherals::Peripherals;
+use std::ptr;
 
 // Wi-Fi
 use esp_idf_svc::eventloop::*;
-use esp_idf_svc::netif::*;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
+use esp_idf_svc::sntp::{self, EspSntp, SyncStatus};
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
+use esp_idf_sys::time_t;
 use heapless::String as HLString;
+
+fn wait_until_time_is_synched(sntp: &EspSntp) {
+    while sntp.get_sync_status() != SyncStatus::Completed {
+        FreeRtos::delay_ms(200);
+    }
+    log::info!("NTP synced")
+}
 
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
-    let stages = [6, 2, 8]; // Seconds.
+    let stages = [20, 5, 35]; // Seconds.
     let sum_stages: u64 = stages.iter().sum();
 
     let offset = 0;
@@ -32,26 +41,29 @@ fn main_logic() -> Result<()> {
     )?;
     connect_wifi(&mut wifi)?;
 
+    let sntp = sntp::EspSntp::new_default()?;
+
+    wait_until_time_is_synched(&sntp);
+
     loop {
-        let now = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)?;
+        let now = std::time::SystemTime::now();
+        log::info!("current system time: {:?}", now);
 
-        log::info!("Now: {:?}", std::time::SystemTime::now());
-        log::info!("Unix Epoch: {:?}", std::time::SystemTime::UNIX_EPOCH);
-        log::info!("Duration since: {:?}", now);
+        let now = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        if ((now.as_secs() + offset) % sum_stages) < 6 {
+        if ((now.as_secs() + offset) % sum_stages) < 20 {
             _ = led2.set_low();
             _ = led3.set_low();
             _ = led1.set_high();
 
             log::info!("red")
-        } else if ((now.as_secs() + offset) % sum_stages) < 8 {
+        } else if ((now.as_secs() + offset) % sum_stages) < 25 {
             _ = led1.set_low();
             _ = led3.set_low();
             _ = led2.set_high();
 
             log::info!("yellow")
-        } else if ((now.as_secs() + offset) % sum_stages) < 16 {
+        } else if ((now.as_secs() + offset) % sum_stages) < 35 {
             _ = led1.set_low();
             _ = led2.set_low();
             _ = led3.set_high();
@@ -75,8 +87,8 @@ fn main() -> Result<()> {
 }
 
 fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
-    let wifi_ssid: HLString<32> = HLString::try_from("ALOIZIO-5G").unwrap();
-    let wifi_password: HLString<64> = HLString::try_from("21072107").unwrap();
+    let wifi_ssid: HLString<32> = HLString::try_from("Wokwi-GUEST").unwrap();
+    let wifi_password: HLString<64> = HLString::try_from("").unwrap();
 
     let wifi_configuration: Configuration = Configuration::Client(ClientConfiguration {
         ssid: wifi_ssid,
@@ -98,4 +110,17 @@ fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()>
     log::info!("Wifi netif up");
 
     Ok(())
+}
+
+fn _get_time(sntp: &EspSntp) -> Result<i64> {
+    log::info!("SNTP initialized, waiting for status!");
+
+    while sntp.get_sync_status() != SyncStatus::Completed {}
+
+    log::info!("SNTP status received!");
+
+    let timer: *mut time_t = ptr::null_mut();
+    let timestamp = unsafe { esp_idf_sys::time(timer) };
+
+    Ok(timestamp)
 }
