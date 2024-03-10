@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::peripherals::Peripherals;
+use log::LevelFilter;
 use std::ptr;
 
 // Wi-Fi
@@ -16,11 +17,13 @@ use heapless::String as HLString;
 const WIFI_SSID: &str = "Wokwi-GUEST";
 const WIFI_PASS: &str = "";
 
-const STAGES: [u64; 3] = [20, 5, 35];
+const STAGES: [u64; 3] = [3, 2, 5];
 const SUM_STAGES: i64 = sum(&STAGES);
 const CUM_SUM_STAGES: [i64; 3] = cum_sum(&STAGES);
 
 const OFFSET: i64 = 0;
+
+const LOG_MAX_LEVEL: LevelFilter = LevelFilter::Info;
 
 const fn sum(stages: &[u64]) -> i64 {
     (stages[0] + stages[1] + stages[2]) as i64
@@ -61,33 +64,68 @@ fn main_logic() -> Result<()> {
 
     wait_until_time_is_synched(&sntp);
 
+    let mut last_update = std::time::SystemTime::now();
+    let mut stage_idx = None;
+
     loop {
         let now = std::time::SystemTime::now();
-        log::info!("current system time: {:?}", now);
+        let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        let now = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
-
-        if ((now.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[0] {
+        if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[0] {
             _ = led2.set_low();
             _ = led3.set_low();
             _ = led1.set_high();
 
-            log::info!("red")
-        } else if ((now.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[1] {
+            if let Some(i) = stage_idx {
+                if i != 0 {
+                    log::info!("red");
+                    stage_idx = Some(0);
+                }
+            } else {
+                stage_idx = Some(0);
+            }
+        } else if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[1]
+        {
             _ = led1.set_low();
             _ = led3.set_low();
             _ = led2.set_high();
 
-            log::info!("yellow")
-        } else if ((now.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[2] {
+            if let Some(i) = stage_idx {
+                if i != 1 {
+                    log::info!("yellow");
+                    stage_idx = Some(1);
+                }
+            } else {
+                stage_idx = Some(1);
+            }
+        } else if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[2]
+        {
             _ = led1.set_low();
             _ = led2.set_low();
             _ = led3.set_high();
 
-            log::info!("green")
+            if let Some(i) = stage_idx {
+                if i != 2 {
+                    log::info!("green");
+                    stage_idx = Some(2);
+                }
+            } else {
+                stage_idx = Some(2);
+            }
         }
 
-        FreeRtos::delay_ms(500);
+        // Attempt to solve sync issues.
+        if let Ok(time_since_last_update) = last_update.elapsed() {
+            if time_since_last_update > std::time::Duration::from_secs(60) {
+                _ = sntp::EspSntp::new_default().map_err(|e| log::info!("failed to sync: {e}"));
+                log::info!("time synchronization finished");
+                last_update = now;
+            }
+        } else {
+            log::info!("failed to synchronize due to last_update being later than current time.")
+        }
+
+        FreeRtos::delay_ms(100);
     }
 }
 
@@ -98,6 +136,8 @@ fn main() -> Result<()> {
 
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
+
+    log::set_max_level(LOG_MAX_LEVEL);
 
     main_logic()
 }
