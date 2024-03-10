@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -13,6 +13,27 @@ use esp_idf_svc::wifi::*;
 use esp_idf_sys::time_t;
 use heapless::String as HLString;
 
+const WIFI_SSID: &str = "Wokwi-GUEST";
+const WIFI_PASS: &str = "";
+
+const STAGES: [u64; 3] = [20, 5, 35];
+const SUM_STAGES: i64 = sum(&STAGES);
+const CUM_SUM_STAGES: [i64; 3] = cum_sum(&STAGES);
+
+const OFFSET: i64 = 0;
+
+const fn sum(stages: &[u64]) -> i64 {
+    (stages[0] + stages[1] + stages[2]) as i64
+}
+
+const fn cum_sum(stages: &[u64; 3]) -> [i64; 3] {
+    [
+        stages[0] as i64,
+        (stages[0] + stages[1]) as i64,
+        (stages[0] + stages[1] + stages[2]) as i64,
+    ]
+}
+
 fn wait_until_time_is_synched(sntp: &EspSntp) {
     while sntp.get_sync_status() != SyncStatus::Completed {
         FreeRtos::delay_ms(200);
@@ -22,11 +43,6 @@ fn wait_until_time_is_synched(sntp: &EspSntp) {
 
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
-    let stages = [20, 5, 35]; // Seconds.
-    let sum_stages: u64 = stages.iter().sum();
-
-    let offset = 0;
-
     let peripherals = Peripherals::take()?;
 
     let mut led1 = PinDriver::output(peripherals.pins.gpio16)?;
@@ -51,19 +67,19 @@ fn main_logic() -> Result<()> {
 
         let now = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        if ((now.as_secs() + offset) % sum_stages) < 20 {
+        if ((now.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[0] {
             _ = led2.set_low();
             _ = led3.set_low();
             _ = led1.set_high();
 
             log::info!("red")
-        } else if ((now.as_secs() + offset) % sum_stages) < 25 {
+        } else if ((now.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[1] {
             _ = led1.set_low();
             _ = led3.set_low();
             _ = led2.set_high();
 
             log::info!("yellow")
-        } else if ((now.as_secs() + offset) % sum_stages) < 35 {
+        } else if ((now.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[2] {
             _ = led1.set_low();
             _ = led2.set_low();
             _ = led3.set_high();
@@ -86,9 +102,11 @@ fn main() -> Result<()> {
     main_logic()
 }
 
-fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
-    let wifi_ssid: HLString<32> = HLString::try_from("Wokwi-GUEST").unwrap();
-    let wifi_password: HLString<64> = HLString::try_from("").unwrap();
+fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> Result<()> {
+    let wifi_ssid: HLString<32> =
+        HLString::try_from(WIFI_SSID).map_err(|_| anyhow!("ssid is more than 32 bytes"))?;
+    let wifi_password: HLString<64> = HLString::try_from(WIFI_PASS)
+        .map_err(|_| anyhow!("wifi password is more than 64 bytes"))?;
 
     let wifi_configuration: Configuration = Configuration::Client(ClientConfiguration {
         ssid: wifi_ssid,
@@ -101,23 +119,23 @@ fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()>
     wifi.set_configuration(&wifi_configuration)?;
 
     wifi.start()?;
-    log::info!("Wifi started");
+    log::info!("wifi started");
 
     wifi.connect()?;
-    log::info!("Wifi connected");
+    log::info!("wifi connected");
 
     wifi.wait_netif_up()?;
-    log::info!("Wifi netif up");
+    log::info!("wifi netif up");
 
     Ok(())
 }
 
 fn _get_time(sntp: &EspSntp) -> Result<i64> {
-    log::info!("SNTP initialized, waiting for status!");
+    log::info!("SNTP initialized, waiting for status...");
 
     while sntp.get_sync_status() != SyncStatus::Completed {}
 
-    log::info!("SNTP status received!");
+    log::info!("SNTP status received");
 
     let timer: *mut time_t = ptr::null_mut();
     let timestamp = unsafe { esp_idf_sys::time(timer) };
