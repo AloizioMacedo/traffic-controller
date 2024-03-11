@@ -3,6 +3,7 @@ use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use log::LevelFilter;
+use thiserror::Error;
 
 // Wi-Fi
 use esp_idf_svc::eventloop::*;
@@ -81,6 +82,51 @@ enum Color {
     Red,
 }
 
+impl Color {
+    fn set_color<Pin1, Pin2, Pin3, MODE>(
+        &self,
+        tl0_red: &mut PinDriver<Pin1, MODE>,
+        tl0_yellow: &mut PinDriver<Pin2, MODE>,
+        tl0_green: &mut PinDriver<Pin3, MODE>,
+    ) where
+        Pin1: esp_idf_svc::hal::gpio::Pin,
+        Pin2: esp_idf_svc::hal::gpio::Pin,
+        Pin3: esp_idf_svc::hal::gpio::Pin,
+        MODE: esp_idf_svc::hal::gpio::OutputMode,
+    {
+        match self {
+            Color::Green => {
+                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_red, tl0_yellow))
+                    .expect("yellow unable to act as safeguard. Panicking...");
+                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_green, tl0_yellow))
+                    .expect("yellow unable to act as safeguard. Panicking...");
+
+                if is_allowed_from_low && is_allowed_from_high {
+                    _ = tl0_yellow.set_low();
+                }
+            }
+            Color::Yellow => {
+                set_low_safe(tl0_red, tl0_yellow)
+                    .expect("yellow unable to act as safeguard. Panicking...");
+                set_low_safe(tl0_green, tl0_yellow)
+                    .expect("yellow unable to act as safeguard. Panicking...");
+
+                _ = tl0_yellow.set_high();
+            }
+            Color::Red => {
+                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_green, tl0_yellow))
+                    .expect("yellow unable to act as safeguard. Panicking...");
+                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_red, tl0_yellow))
+                    .expect("yellow unable to act as safeguard. Panicking...");
+
+                if is_allowed_from_low && is_allowed_from_high {
+                    _ = tl0_yellow.set_low();
+                }
+            }
+        }
+    }
+}
+
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
     let sum_stages: i64 = sum(&STATES);
@@ -117,40 +163,10 @@ fn main_logic() -> Result<()> {
             if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % sum_stages) < *cum_sum {
                 for (i, tl_color) in state.traffic_lights.iter().enumerate() {
                     match i {
-                        0 => match tl_color {
-                            Color::Green => {
-                                _ = tl0_red.set_low();
-                                _ = tl0_yellow.set_low();
-                                _ = tl0_green.set_high();
-                            }
-                            Color::Yellow => {
-                                _ = tl0_red.set_low();
-                                _ = tl0_green.set_low();
-                                _ = tl0_yellow.set_high();
-                            }
-                            Color::Red => {
-                                _ = tl0_green.set_low();
-                                _ = tl0_yellow.set_low();
-                                _ = tl0_red.set_high();
-                            }
-                        },
-                        1 => match tl_color {
-                            Color::Green => {
-                                _ = tl1_red.set_low();
-                                _ = tl1_yellow.set_low();
-                                _ = tl1_green.set_high();
-                            }
-                            Color::Yellow => {
-                                _ = tl1_red.set_low();
-                                _ = tl1_green.set_low();
-                                _ = tl1_yellow.set_high();
-                            }
-                            Color::Red => {
-                                _ = tl1_green.set_low();
-                                _ = tl1_yellow.set_low();
-                                _ = tl1_red.set_high();
-                            }
-                        },
+                        0 => {
+                            tl_color.set_color(&mut tl0_red, &mut tl0_yellow, &mut tl0_green);
+                        }
+                        1 => tl_color.set_color(&mut tl1_red, &mut tl1_yellow, &mut tl1_green),
                         _ => unreachable!(),
                     };
                 }
@@ -160,6 +176,65 @@ fn main_logic() -> Result<()> {
         }
 
         FreeRtos::delay_ms(100);
+    }
+}
+
+#[derive(Error, Debug)]
+enum LedSettingError {
+    #[error("unable to set")]
+    UnableToSet,
+
+    #[error("unable to set yellow to high")]
+    UnableToRaiseYellow,
+}
+
+fn set_low_safe<Pin1, Pin2, MODE>(
+    to_set_low1: &mut PinDriver<Pin1, MODE>,
+    yellow: &mut PinDriver<Pin2, MODE>,
+) -> Result<(), LedSettingError>
+where
+    Pin1: esp_idf_svc::hal::gpio::Pin,
+    Pin2: esp_idf_svc::hal::gpio::Pin,
+    MODE: esp_idf_svc::hal::gpio::OutputMode,
+{
+    if to_set_low1.set_low().is_err() {
+        yellow
+            .set_high()
+            .map_err(|_| LedSettingError::UnableToRaiseYellow)?;
+
+        return Err(LedSettingError::UnableToSet);
+    };
+
+    Ok(())
+}
+
+fn set_high_safe<Pin1, Pin2, MODE>(
+    to_set_high: &mut PinDriver<Pin1, MODE>,
+    yellow: &mut PinDriver<Pin2, MODE>,
+) -> Result<(), LedSettingError>
+where
+    Pin1: esp_idf_svc::hal::gpio::Pin,
+    Pin2: esp_idf_svc::hal::gpio::Pin,
+    MODE: esp_idf_svc::hal::gpio::OutputMode,
+{
+    if to_set_high.set_high().is_err() {
+        yellow
+            .set_high()
+            .map_err(|_| LedSettingError::UnableToRaiseYellow)?;
+
+        return Err(LedSettingError::UnableToSet);
+    };
+
+    Ok(())
+}
+
+fn can_yellow_go_low(res: Result<(), LedSettingError>) -> Result<bool> {
+    match res {
+        Ok(_) => Ok(true),
+        Err(LedSettingError::UnableToSet) => Ok(false),
+        Err(LedSettingError::UnableToRaiseYellow) => {
+            Err(anyhow!("not possible to set yellow to high"))
+        }
     }
 }
 
