@@ -7,7 +7,7 @@ use log::LevelFilter;
 // Wi-Fi
 use esp_idf_svc::eventloop::*;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
-use esp_idf_svc::sntp::{self, EspSntp, SntpConf, SyncStatus};
+use esp_idf_svc::sntp::{self, EspSntp, SyncStatus};
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
 use heapless::String as HLString;
@@ -50,12 +50,7 @@ fn main_logic() -> Result<()> {
     let nvs = EspDefaultNvsPartition::take()?;
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
 
-    let conf = SntpConf {
-        operating_mode: sntp::OperatingMode::Poll,
-        sync_mode: sntp::SyncMode::Smooth,
-        ..Default::default()
-    };
-    let esp_sntp = sntp::EspSntp::new(&conf)?;
+    let esp_sntp = sntp::EspSntp::new_default()?;
 
     sync_time(&mut wifi, &esp_sntp)?;
 
