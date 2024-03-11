@@ -138,7 +138,9 @@ fn main_logic() -> Result<()> {
                         0 => {
                             tl_color.set_color(&mut tl0_red, &mut tl0_yellow, &mut tl0_green);
                         }
-                        1 => tl_color.set_color(&mut tl1_red, &mut tl1_yellow, &mut tl1_green),
+                        1 => {
+                            tl_color.set_color(&mut tl1_red, &mut tl1_yellow, &mut tl1_green);
+                        }
                         _ => unreachable!(),
                     };
                 }
