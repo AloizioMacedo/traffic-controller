@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
+use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use log::LevelFilter;
-use std::ptr;
 
 // Wi-Fi
 use esp_idf_svc::eventloop::*;
@@ -11,7 +11,6 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::sntp::{self, EspSntp, SntpConf, SyncStatus};
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
-use esp_idf_sys::time_t;
 use heapless::String as HLString;
 
 const WIFI_SSID: &str = "Wokwi-GUEST";
@@ -37,13 +36,6 @@ const fn cum_sum(stages: &[u64; 3]) -> [i64; 3] {
     ]
 }
 
-fn wait_until_time_is_synched(sntp: &EspSntp) {
-    while sntp.get_sync_status() != SyncStatus::Completed {
-        FreeRtos::delay_ms(200);
-    }
-    log::info!("NTP synced")
-}
-
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
     let peripherals = Peripherals::take()?;
@@ -52,22 +44,9 @@ fn main_logic() -> Result<()> {
     let mut led2 = PinDriver::output(peripherals.pins.gpio4)?;
     let mut led3 = PinDriver::output(peripherals.pins.gpio0)?;
 
-    let sysloop = EspSystemEventLoop::take()?;
-    let nvs = EspDefaultNvsPartition::take()?;
-    let mut wifi = BlockingWifi::wrap(
-        EspWifi::new(peripherals.modem, sysloop.clone(), Some(nvs))?,
-        sysloop,
-    )?;
-    connect_wifi(&mut wifi)?;
+    let modem = peripherals.modem;
 
-    let conf = SntpConf {
-        operating_mode: sntp::OperatingMode::Poll,
-        sync_mode: sntp::SyncMode::Smooth,
-        ..Default::default()
-    };
-    let esp_sntp = sntp::EspSntp::new(&conf)?;
-
-    wait_until_time_is_synched(&esp_sntp);
+    sync_time(modem)?;
 
     let mut stage_idx = None;
 
@@ -135,6 +114,25 @@ fn main() -> Result<()> {
     main_logic()
 }
 
+// Uses WiFi and SNTP to sync time.
+fn sync_time(modem: Modem) -> Result<()> {
+    let sysloop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
+    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
+    connect_wifi(&mut wifi)?;
+    let conf = SntpConf {
+        operating_mode: sntp::OperatingMode::Poll,
+        sync_mode: sntp::SyncMode::Smooth,
+        ..Default::default()
+    };
+    let esp_sntp = sntp::EspSntp::new(&conf)?;
+
+    wait_until_time_is_synched(&esp_sntp);
+
+    Ok(())
+}
+
+// Connects the WiFi.
 fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> Result<()> {
     let wifi_ssid: HLString<32> =
         HLString::try_from(WIFI_SSID).map_err(|_| anyhow!("ssid is more than 32 bytes"))?;
@@ -163,15 +161,10 @@ fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> Result<()> {
     Ok(())
 }
 
-fn _get_time(sntp: &EspSntp) -> Result<i64> {
-    log::info!("SNTP initialized, waiting for status...");
-
-    while sntp.get_sync_status() != SyncStatus::Completed {}
-
-    log::info!("SNTP status received");
-
-    let timer: *mut time_t = ptr::null_mut();
-    let timestamp = unsafe { esp_idf_sys::time(timer) };
-
-    Ok(timestamp)
+// Waits to proceed until time is synched through SNTP.
+fn wait_until_time_is_synched(sntp: &EspSntp) {
+    while sntp.get_sync_status() != SyncStatus::Completed {
+        FreeRtos::delay_ms(200);
+    }
+    log::info!("NTP synced")
 }
