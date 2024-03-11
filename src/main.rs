@@ -42,13 +42,13 @@ fn main() -> Result<()> {
     let peripherals = Peripherals::take()?;
 
     // Leds
-    let tl0_red = PinDriver::output(peripherals.pins.gpio16)?;
-    let tl0_yellow = PinDriver::output(peripherals.pins.gpio4)?;
-    let tl0_green = PinDriver::output(peripherals.pins.gpio0)?;
+    let mut tl0_red = PinDriver::output(peripherals.pins.gpio16)?;
+    let mut tl0_yellow = PinDriver::output(peripherals.pins.gpio4)?;
+    let mut tl0_green = PinDriver::output(peripherals.pins.gpio0)?;
 
-    let tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
-    let tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
-    let tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
+    let mut tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
+    let mut tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
+    let mut tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
 
     // Most of those have to stay alive in order to keep the connection and update the
     // clock. Do *not* drop them.
@@ -65,12 +65,12 @@ fn main() -> Result<()> {
         cum_sum_states,
         states,
         sum_states,
-        tl0_red,
-        tl0_yellow,
-        tl0_green,
-        tl1_red,
-        tl1_yellow,
-        tl1_green,
+        &mut tl0_red,
+        &mut tl0_yellow,
+        &mut tl0_green,
+        &mut tl1_red,
+        &mut tl1_yellow,
+        &mut tl1_green,
     )
 }
 
@@ -149,12 +149,12 @@ fn main_loop(
     cum_sum_stages: Vec<i64>,
     states: Vec<State>,
     sum_stages: i64,
-    mut tl0_red: PinDriver<'_, Gpio16, Output>,
-    mut tl0_yellow: PinDriver<'_, Gpio4, Output>,
-    mut tl0_green: PinDriver<'_, Gpio0, Output>,
-    mut tl1_red: PinDriver<'_, Gpio26, Output>,
-    mut tl1_yellow: PinDriver<'_, Gpio27, Output>,
-    mut tl1_green: PinDriver<'_, Gpio14, Output>,
+    tl0_red: &mut PinDriver<'_, Gpio16, Output>,
+    tl0_yellow: &mut PinDriver<'_, Gpio4, Output>,
+    tl0_green: &mut PinDriver<'_, Gpio0, Output>,
+    tl1_red: &mut PinDriver<'_, Gpio26, Output>,
+    tl1_yellow: &mut PinDriver<'_, Gpio27, Output>,
+    tl1_green: &mut PinDriver<'_, Gpio14, Output>,
 ) -> Result<()> {
     loop {
         let now = std::time::SystemTime::now();
@@ -165,10 +165,10 @@ fn main_loop(
                 for (i, tl_color) in state.traffic_lights.iter().enumerate() {
                     match i {
                         0 => {
-                            tl_color.set_color(&mut tl0_red, &mut tl0_yellow, &mut tl0_green)?;
+                            tl_color.set_color(tl0_red, tl0_yellow, tl0_green)?;
                         }
                         1 => {
-                            tl_color.set_color(&mut tl1_red, &mut tl1_yellow, &mut tl1_green)?;
+                            tl_color.set_color(tl1_red, tl1_yellow, tl1_green)?;
                         }
                         _ => unreachable!(),
                     };
