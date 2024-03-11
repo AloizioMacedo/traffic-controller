@@ -12,36 +12,89 @@ use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
 use heapless::String as HLString;
 
+const N_STATES: usize = 6;
+const N_TLS: usize = 2;
+
 const WIFI_SSID: &str = "Wokwi-GUEST";
 const WIFI_PASS: &str = "";
 
-const STAGES: [u64; 3] = [3, 2, 5];
-const SUM_STAGES: i64 = sum(&STAGES);
-const CUM_SUM_STAGES: [i64; 3] = cum_sum(&STAGES);
+const STATES: [State; N_STATES] = [
+    State {
+        traffic_lights: [Color::Red, Color::Green],
+        duration: 4,
+    },
+    State {
+        traffic_lights: [Color::Red, Color::Yellow],
+        duration: 2,
+    },
+    State {
+        traffic_lights: [Color::Red, Color::Red],
+        duration: 2,
+    },
+    State {
+        traffic_lights: [Color::Green, Color::Red],
+        duration: 8,
+    },
+    State {
+        traffic_lights: [Color::Yellow, Color::Red],
+        duration: 2,
+    },
+    State {
+        traffic_lights: [Color::Red, Color::Red],
+        duration: 2,
+    },
+];
 
 const OFFSET: i64 = 0;
 
 const LOG_MAX_LEVEL: LevelFilter = LevelFilter::Info;
 
-const fn sum(stages: &[u64]) -> i64 {
-    (stages[0] + stages[1] + stages[2]) as i64
+fn sum(states: &[State]) -> i64 {
+    states.iter().map(|stage| stage.duration as i64).sum()
 }
 
-const fn cum_sum(stages: &[u64; 3]) -> [i64; 3] {
-    [
-        stages[0] as i64,
-        (stages[0] + stages[1]) as i64,
-        (stages[0] + stages[1] + stages[2]) as i64,
-    ]
+fn cum_sum(states: &[State]) -> [i64; N_STATES] {
+    let mut cum_sum: [i64; N_STATES] = [0; N_STATES];
+
+    states
+        .iter()
+        .enumerate()
+        .take(N_STATES)
+        .fold(0, |acc, (i, state)| {
+            let acc = acc + state.duration;
+            cum_sum[i] = acc as i64;
+
+            acc
+        });
+
+    cum_sum
+}
+
+struct State {
+    traffic_lights: [Color; N_TLS],
+    duration: u64,
+}
+
+enum Color {
+    Green,
+    Yellow,
+    Red,
 }
 
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
+    let sum_stages: i64 = sum(&STATES);
+    let cum_sum_stages: [i64; N_STATES] = cum_sum(&STATES);
+
     let peripherals = Peripherals::take()?;
 
-    let mut led1 = PinDriver::output(peripherals.pins.gpio16)?;
-    let mut led2 = PinDriver::output(peripherals.pins.gpio4)?;
-    let mut led3 = PinDriver::output(peripherals.pins.gpio0)?;
+    let mut tl0_red = PinDriver::output(peripherals.pins.gpio16)?;
+    let mut tl0_yellow = PinDriver::output(peripherals.pins.gpio4)?;
+    let mut tl0_green = PinDriver::output(peripherals.pins.gpio0)?;
+
+    let mut tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
+    let mut tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
+    let mut tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
 
     // Most of those have to stay alive in order to keep the connection and update the
     // clock. Do *not* drop them.
@@ -56,52 +109,53 @@ fn main_logic() -> Result<()> {
 
     // Main flow for the traffic light is below.
 
-    let mut stage_idx = None;
-
     loop {
         let now = std::time::SystemTime::now();
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[0] {
-            _ = led2.set_low();
-            _ = led3.set_low();
-            _ = led1.set_high();
-
-            if let Some(i) = stage_idx {
-                if i != 0 {
-                    log::info!("red");
-                    stage_idx = Some(0);
+        for (cum_sum, state) in cum_sum_stages.iter().zip(&STATES) {
+            if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % sum_stages) < *cum_sum {
+                for (i, tl_color) in state.traffic_lights.iter().enumerate() {
+                    match i {
+                        0 => match tl_color {
+                            Color::Green => {
+                                _ = tl0_red.set_low();
+                                _ = tl0_yellow.set_low();
+                                _ = tl0_green.set_high();
+                            }
+                            Color::Yellow => {
+                                _ = tl0_red.set_low();
+                                _ = tl0_green.set_low();
+                                _ = tl0_yellow.set_high();
+                            }
+                            Color::Red => {
+                                _ = tl0_green.set_low();
+                                _ = tl0_yellow.set_low();
+                                _ = tl0_red.set_high();
+                            }
+                        },
+                        1 => match tl_color {
+                            Color::Green => {
+                                _ = tl1_red.set_low();
+                                _ = tl1_yellow.set_low();
+                                _ = tl1_green.set_high();
+                            }
+                            Color::Yellow => {
+                                _ = tl1_red.set_low();
+                                _ = tl1_green.set_low();
+                                _ = tl1_yellow.set_high();
+                            }
+                            Color::Red => {
+                                _ = tl1_green.set_low();
+                                _ = tl1_yellow.set_low();
+                                _ = tl1_red.set_high();
+                            }
+                        },
+                        _ => unreachable!(),
+                    };
                 }
-            } else {
-                stage_idx = Some(0);
-            }
-        } else if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[1]
-        {
-            _ = led1.set_low();
-            _ = led3.set_low();
-            _ = led2.set_high();
 
-            if let Some(i) = stage_idx {
-                if i != 1 {
-                    log::info!("yellow");
-                    stage_idx = Some(1);
-                }
-            } else {
-                stage_idx = Some(1);
-            }
-        } else if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % SUM_STAGES) < CUM_SUM_STAGES[2]
-        {
-            _ = led1.set_low();
-            _ = led2.set_low();
-            _ = led3.set_high();
-
-            if let Some(i) = stage_idx {
-                if i != 2 {
-                    log::info!("green");
-                    stage_idx = Some(2);
-                }
-            } else {
-                stage_idx = Some(2);
+                break;
             }
         }
 
