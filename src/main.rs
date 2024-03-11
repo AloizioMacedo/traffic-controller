@@ -132,7 +132,7 @@ fn main_logic() -> Result<()> {
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
         for (cum_sum, state) in cum_sum_stages.iter().zip(&states) {
-            if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % sum_stages) < *cum_sum {
+            if ((elapsed_since_epoch.as_secs() as i64 - OFFSET) % sum_stages) < *cum_sum {
                 for (i, tl_color) in state.traffic_lights.iter().enumerate() {
                     match i {
                         0 => {
