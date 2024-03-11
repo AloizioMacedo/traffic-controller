@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
-use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use log::LevelFilter;
 
@@ -44,9 +43,23 @@ fn main_logic() -> Result<()> {
     let mut led2 = PinDriver::output(peripherals.pins.gpio4)?;
     let mut led3 = PinDriver::output(peripherals.pins.gpio0)?;
 
+    // Most of those have to stay alive in order to keep the connection and update the
+    // clock. Do *not* drop them.
     let modem = peripherals.modem;
+    let sysloop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
+    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
 
-    sync_time(modem)?;
+    let conf = SntpConf {
+        operating_mode: sntp::OperatingMode::Poll,
+        sync_mode: sntp::SyncMode::Smooth,
+        ..Default::default()
+    };
+    let esp_sntp = sntp::EspSntp::new(&conf)?;
+
+    sync_time(&mut wifi, &esp_sntp)?;
+
+    // Main flow for the traffic light is below.
 
     let mut stage_idx = None;
 
@@ -115,19 +128,9 @@ fn main() -> Result<()> {
 }
 
 // Uses WiFi and SNTP to sync time.
-fn sync_time(modem: Modem) -> Result<()> {
-    let sysloop = EspSystemEventLoop::take()?;
-    let nvs = EspDefaultNvsPartition::take()?;
-    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
-    connect_wifi(&mut wifi)?;
-    let conf = SntpConf {
-        operating_mode: sntp::OperatingMode::Poll,
-        sync_mode: sntp::SyncMode::Smooth,
-        ..Default::default()
-    };
-    let esp_sntp = sntp::EspSntp::new(&conf)?;
-
-    wait_until_time_is_synched(&esp_sntp);
+fn sync_time(wifi: &mut BlockingWifi<EspWifi<'static>>, esp_sntp: &EspSntp<'_>) -> Result<()> {
+    connect_wifi(wifi)?;
+    wait_until_time_is_synched(esp_sntp);
 
     Ok(())
 }
