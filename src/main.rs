@@ -25,6 +25,55 @@ const OFFSET: i64 = 0;
 
 const LOG_MAX_LEVEL: LevelFilter = LevelFilter::Info;
 
+fn main() -> Result<()> {
+    // It is necessary to call this function once. Otherwise some patches to the runtime
+    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
+    esp_idf_svc::sys::link_patches();
+
+    // Bind the log crate to the ESP Logging facilities
+    esp_idf_svc::log::EspLogger::initialize_default();
+
+    log::set_max_level(LOG_MAX_LEVEL);
+
+    let states = parse_config(CONFIG)?;
+    let sum_states: i64 = sum(&states);
+    let cum_sum_states = cum_sum(&states);
+
+    let peripherals = Peripherals::take()?;
+
+    // Leds
+    let tl0_red = PinDriver::output(peripherals.pins.gpio16)?;
+    let tl0_yellow = PinDriver::output(peripherals.pins.gpio4)?;
+    let tl0_green = PinDriver::output(peripherals.pins.gpio0)?;
+
+    let tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
+    let tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
+    let tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
+
+    // Most of those have to stay alive in order to keep the connection and update the
+    // clock. Do *not* drop them.
+    let modem = peripherals.modem;
+    let sysloop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
+    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
+
+    let esp_sntp = sntp::EspSntp::new_default()?;
+
+    sync_time(&mut wifi, &esp_sntp)?;
+
+    main_loop(
+        cum_sum_states,
+        states,
+        sum_states,
+        tl0_red,
+        tl0_yellow,
+        tl0_green,
+        tl1_red,
+        tl1_yellow,
+        tl1_green,
+    )
+}
+
 fn sum(states: &[State]) -> i64 {
     states.iter().map(|stage| stage.duration as i64).sum()
 }
@@ -98,35 +147,18 @@ impl Color {
     }
 }
 
-// Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
-fn main_logic() -> Result<()> {
-    let states = parse_config(CONFIG)?;
-    let sum_stages: i64 = sum(&states);
-    let cum_sum_stages = cum_sum(&states);
-
-    let peripherals = Peripherals::take()?;
-
-    let mut tl0_red = PinDriver::output(peripherals.pins.gpio16)?;
-    let mut tl0_yellow = PinDriver::output(peripherals.pins.gpio4)?;
-    let mut tl0_green = PinDriver::output(peripherals.pins.gpio0)?;
-
-    let mut tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
-    let mut tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
-    let mut tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
-
-    // Most of those have to stay alive in order to keep the connection and update the
-    // clock. Do *not* drop them.
-    let modem = peripherals.modem;
-    let sysloop = EspSystemEventLoop::take()?;
-    let nvs = EspDefaultNvsPartition::take()?;
-    let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
-
-    let esp_sntp = sntp::EspSntp::new_default()?;
-
-    sync_time(&mut wifi, &esp_sntp)?;
-
-    // Main flow for the traffic light is below.
-
+#[allow(clippy::too_many_arguments)]
+fn main_loop(
+    cum_sum_stages: Vec<i64>,
+    states: Vec<State>,
+    sum_stages: i64,
+    mut tl0_red: PinDriver<'_, Gpio16, Output>,
+    mut tl0_yellow: PinDriver<'_, Gpio4, Output>,
+    mut tl0_green: PinDriver<'_, Gpio0, Output>,
+    mut tl1_red: PinDriver<'_, Gpio26, Output>,
+    mut tl1_yellow: PinDriver<'_, Gpio27, Output>,
+    mut tl1_green: PinDriver<'_, Gpio14, Output>,
+) -> Result<(), anyhow::Error> {
     loop {
         let now = std::time::SystemTime::now();
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
@@ -210,19 +242,6 @@ fn can_yellow_go_low(res: Result<(), LedSettingError>) -> Result<bool> {
             Err(anyhow!("not possible to set yellow to high"))
         }
     }
-}
-
-fn main() -> Result<()> {
-    // It is necessary to call this function once. Otherwise some patches to the runtime
-    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
-    esp_idf_svc::sys::link_patches();
-
-    // Bind the log crate to the ESP Logging facilities
-    esp_idf_svc::log::EspLogger::initialize_default();
-
-    log::set_max_level(LOG_MAX_LEVEL);
-
-    main_logic()
 }
 
 // Uses WiFi and SNTP to sync time.
