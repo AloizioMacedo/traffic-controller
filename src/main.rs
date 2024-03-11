@@ -108,7 +108,8 @@ impl Color {
         tl0_red: &mut PinDriver<Pin1, MODE>,
         tl0_yellow: &mut PinDriver<Pin2, MODE>,
         tl0_green: &mut PinDriver<Pin3, MODE>,
-    ) where
+    ) -> Result<()>
+    where
         Pin1: esp_idf_svc::hal::gpio::Pin,
         Pin2: esp_idf_svc::hal::gpio::Pin,
         Pin3: esp_idf_svc::hal::gpio::Pin,
@@ -116,34 +117,30 @@ impl Color {
     {
         match self {
             Color::Green => {
-                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_red, tl0_yellow))
-                    .expect("yellow unable to act as safeguard. Panicking...");
-                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_green, tl0_yellow))
-                    .expect("yellow unable to act as safeguard. Panicking...");
+                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_red, tl0_yellow))?;
+                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_green, tl0_yellow))?;
 
                 if is_allowed_from_low && is_allowed_from_high {
                     _ = tl0_yellow.set_low();
                 }
             }
             Color::Yellow => {
-                set_low_safe(tl0_red, tl0_yellow)
-                    .expect("yellow unable to act as safeguard. Panicking...");
-                set_low_safe(tl0_green, tl0_yellow)
-                    .expect("yellow unable to act as safeguard. Panicking...");
+                _ = set_low_safe(tl0_red, tl0_yellow);
+                _ = set_low_safe(tl0_green, tl0_yellow);
 
-                _ = tl0_yellow.set_high();
+                tl0_yellow.set_high()?;
             }
             Color::Red => {
-                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_green, tl0_yellow))
-                    .expect("yellow unable to act as safeguard. Panicking...");
-                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_red, tl0_yellow))
-                    .expect("yellow unable to act as safeguard. Panicking...");
+                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_green, tl0_yellow))?;
+                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_red, tl0_yellow))?;
 
                 if is_allowed_from_low && is_allowed_from_high {
                     _ = tl0_yellow.set_low();
                 }
             }
         }
+
+        Ok(())
     }
 }
 
@@ -158,7 +155,7 @@ fn main_loop(
     mut tl1_red: PinDriver<'_, Gpio26, Output>,
     mut tl1_yellow: PinDriver<'_, Gpio27, Output>,
     mut tl1_green: PinDriver<'_, Gpio14, Output>,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
     loop {
         let now = std::time::SystemTime::now();
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
@@ -168,10 +165,10 @@ fn main_loop(
                 for (i, tl_color) in state.traffic_lights.iter().enumerate() {
                     match i {
                         0 => {
-                            tl_color.set_color(&mut tl0_red, &mut tl0_yellow, &mut tl0_green);
+                            tl_color.set_color(&mut tl0_red, &mut tl0_yellow, &mut tl0_green)?;
                         }
                         1 => {
-                            tl_color.set_color(&mut tl1_red, &mut tl1_yellow, &mut tl1_green);
+                            tl_color.set_color(&mut tl1_red, &mut tl1_yellow, &mut tl1_green)?;
                         }
                         _ => unreachable!(),
                     };
