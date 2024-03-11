@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "author": "Sergio Gasquez Arcos",
+  "author": "Aloizio Macedo",
   "editor": "wokwi",
   "parts": [
     {
@@ -41,16 +41,58 @@
     {
       "type": "wokwi-led",
       "id": "led-yellow",
-      "top": 44.8,
-      "left": 186.6,
+      "top": 44.4,
+      "left": 186.2,
       "attrs": { "color": "yellow", "flip": "" }
     },
     {
       "type": "wokwi-led",
       "id": "led-green",
-      "top": 54.8,
-      "left": 196.6,
+      "top": 54,
+      "left": 195.8,
       "attrs": { "color": "green", "flip": "" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-red1",
+      "top": 34.8,
+      "left": -92.2,
+      "attrs": { "color": "red", "flip": "" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-yellow1",
+      "top": 44.4,
+      "left": -101.8,
+      "attrs": { "color": "yellow", "flip": "" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-green1",
+      "top": 54,
+      "left": -111.4,
+      "attrs": { "color": "green", "flip": "" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r4",
+      "top": 128.75,
+      "left": -67.2,
+      "attrs": { "value": "1000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r5",
+      "top": 119.15,
+      "left": -67.2,
+      "attrs": { "value": "1000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r6",
+      "top": 109.55,
+      "left": -67.2,
+      "attrs": { "value": "1000" }
     }
   ],
   "connections": [
@@ -64,7 +106,16 @@
     [ "led-yellow:A", "r2:2", "green", [ "v0" ] ],
     [ "esp:4", "r2:1", "green", [ "h0" ] ],
     [ "led-green:A", "r3:2", "green", [ "v0" ] ],
-    [ "esp:0", "r3:1", "green", [ "h0" ] ]
+    [ "esp:0", "r3:1", "green", [ "h0" ] ],
+    [ "led-green1:C", "esp:GND.1", "black", [ "v0" ] ],
+    [ "led-yellow1:C", "esp:GND.1", "black", [ "v0" ] ],
+    [ "led-red1:C", "esp:GND.1", "black", [ "v0" ] ],
+    [ "led-red1:A", "r6:1", "green", [ "v0" ] ],
+    [ "r6:2", "esp:26", "green", [ "v0" ] ],
+    [ "led-yellow1:A", "r5:1", "green", [ "v0" ] ],
+    [ "r5:2", "esp:27", "green", [ "v0" ] ],
+    [ "led-green1:A", "r4:1", "green", [ "v0" ] ],
+    [ "r4:2", "esp:14", "green", [ "v0" ] ]
   ],
   "serialMonitor": { "display": "terminal" },
   "dependencies": {}
