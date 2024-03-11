@@ -1,4 +1,7 @@
+mod config_parser;
+
 use anyhow::{anyhow, Result};
+use config_parser::parse_config;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -13,38 +16,10 @@ use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
 use heapless::String as HLString;
 
-const N_STATES: usize = 6;
-const N_TLS: usize = 2;
+const CONFIG: &str = include_str!("../tl.config");
 
 const WIFI_SSID: &str = "Wokwi-GUEST";
 const WIFI_PASS: &str = "";
-
-const STATES: [State; N_STATES] = [
-    State {
-        traffic_lights: [Color::Red, Color::Green],
-        duration: 4,
-    },
-    State {
-        traffic_lights: [Color::Red, Color::Yellow],
-        duration: 2,
-    },
-    State {
-        traffic_lights: [Color::Red, Color::Red],
-        duration: 2,
-    },
-    State {
-        traffic_lights: [Color::Green, Color::Red],
-        duration: 8,
-    },
-    State {
-        traffic_lights: [Color::Yellow, Color::Red],
-        duration: 2,
-    },
-    State {
-        traffic_lights: [Color::Red, Color::Red],
-        duration: 2,
-    },
-];
 
 const OFFSET: i64 = 0;
 
@@ -54,25 +29,21 @@ fn sum(states: &[State]) -> i64 {
     states.iter().map(|stage| stage.duration as i64).sum()
 }
 
-fn cum_sum(states: &[State]) -> [i64; N_STATES] {
-    let mut cum_sum: [i64; N_STATES] = [0; N_STATES];
+fn cum_sum(states: &[State]) -> Vec<i64> {
+    let mut cum_sum = vec![0; states.len()];
 
-    states
-        .iter()
-        .enumerate()
-        .take(N_STATES)
-        .fold(0, |acc, (i, state)| {
-            let acc = acc + state.duration;
-            cum_sum[i] = acc as i64;
+    states.iter().enumerate().fold(0, |acc, (i, state)| {
+        let acc = acc + state.duration;
+        cum_sum[i] = acc as i64;
 
-            acc
-        });
+        acc
+    });
 
     cum_sum
 }
 
 struct State {
-    traffic_lights: [Color; N_TLS],
+    traffic_lights: Vec<Color>,
     duration: u64,
 }
 
@@ -129,8 +100,9 @@ impl Color {
 
 // Wrapped up by main, avoiding the boilerplate of link_patches and initialize_default.
 fn main_logic() -> Result<()> {
-    let sum_stages: i64 = sum(&STATES);
-    let cum_sum_stages: [i64; N_STATES] = cum_sum(&STATES);
+    let states = parse_config(CONFIG)?;
+    let sum_stages: i64 = sum(&states);
+    let cum_sum_stages = cum_sum(&states);
 
     let peripherals = Peripherals::take()?;
 
@@ -159,7 +131,7 @@ fn main_logic() -> Result<()> {
         let now = std::time::SystemTime::now();
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        for (cum_sum, state) in cum_sum_stages.iter().zip(&STATES) {
+        for (cum_sum, state) in cum_sum_stages.iter().zip(&states) {
             if ((elapsed_since_epoch.as_secs() as i64 + OFFSET) % sum_stages) < *cum_sum {
                 for (i, tl_color) in state.traffic_lights.iter().enumerate() {
                     match i {
