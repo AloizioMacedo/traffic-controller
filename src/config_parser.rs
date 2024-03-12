@@ -32,7 +32,7 @@ fn parse_line(line: &str) -> Result<State> {
         .collect::<Result<Vec<_>>>()?;
 
     Ok(State {
-        traffic_lights,
+        traffic_lights_colors: traffic_lights,
         duration,
     })
 }

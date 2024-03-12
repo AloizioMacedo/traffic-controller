@@ -9,7 +9,7 @@ use heapless::String as HLString;
 const WIFI_SSID: &str = "Wokwi-GUEST";
 const WIFI_PASS: &str = "";
 
-// Uses WiFi and SNTP to sync time.
+/// Uses WiFi and SNTP to sync time.
 pub fn sync_time(wifi: &mut BlockingWifi<EspWifi<'static>>, esp_sntp: &EspSntp<'_>) -> Result<()> {
     connect_wifi(wifi)?;
     wait_until_time_is_synched(esp_sntp);
@@ -17,7 +17,7 @@ pub fn sync_time(wifi: &mut BlockingWifi<EspWifi<'static>>, esp_sntp: &EspSntp<'
     Ok(())
 }
 
-// Connects the WiFi.
+/// Connects the WiFi.
 fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> Result<()> {
     let wifi_ssid: HLString<32> =
         HLString::try_from(WIFI_SSID).map_err(|_| anyhow!("ssid is more than 32 bytes"))?;
@@ -46,7 +46,7 @@ fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> Result<()> {
     Ok(())
 }
 
-// Waits to proceed until time is synched through SNTP.
+/// Waits to proceed until time is synched through SNTP.
 fn wait_until_time_is_synched(sntp: &EspSntp) {
     while sntp.get_sync_status() != SyncStatus::Completed {
         FreeRtos::delay_ms(200);

@@ -15,7 +15,7 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::sntp::{self};
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
-use tl::{build_traffic_lights, Color, ColorSetter};
+use tl::{build_traffic_lights, ColorSetter, State};
 use utils::{cum_sum, sum};
 use wifi::sync_time;
 
@@ -54,11 +54,6 @@ fn main() -> Result<()> {
     main_loop(&states, offset, sum_states, &cum_sum_states, &mut tls)
 }
 
-struct State {
-    traffic_lights: Vec<Color>,
-    duration: u64,
-}
-
 fn main_loop(
     states: &[State],
     offset: i64,
@@ -78,7 +73,7 @@ fn main_loop(
             })
             .expect("(sum % sum_stages) should always be less than some cum_sum");
 
-        for (tl, color) in tls.iter_mut().zip(&state.traffic_lights) {
+        for (tl, color) in tls.iter_mut().zip(&state.traffic_lights_colors) {
             tl.set_color(color)?;
         }
 

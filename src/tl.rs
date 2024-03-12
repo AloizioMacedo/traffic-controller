@@ -7,6 +7,13 @@ pub enum Color {
     Yellow,
     Red,
 }
+pub struct State {
+    /// Information of the color in each traffic light, in order.
+    pub traffic_lights_colors: Vec<Color>,
+
+    /// Duration of the state in seconds.
+    pub duration: u64,
+}
 
 pub trait ColorSetter {
     fn set_color(&mut self, color: &Color) -> Result<()>;
