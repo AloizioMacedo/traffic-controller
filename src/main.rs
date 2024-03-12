@@ -42,13 +42,25 @@ fn main() -> Result<()> {
     let peripherals = Peripherals::take()?;
 
     // Leds
-    let mut tl0_red = PinDriver::output(peripherals.pins.gpio16)?;
-    let mut tl0_yellow = PinDriver::output(peripherals.pins.gpio4)?;
-    let mut tl0_green = PinDriver::output(peripherals.pins.gpio0)?;
+    let tl0_red: PinDriver<'_, Gpio16, Output> = PinDriver::output(peripherals.pins.gpio16)?;
+    let tl0_yellow: PinDriver<'_, Gpio4, Output> = PinDriver::output(peripherals.pins.gpio4)?;
+    let tl0_green: PinDriver<'_, Gpio0, Output> = PinDriver::output(peripherals.pins.gpio0)?;
 
-    let mut tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
-    let mut tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
-    let mut tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
+    let mut tl0 = TrafficLight {
+        red: tl0_red,
+        yellow: tl0_yellow,
+        green: tl0_green,
+    };
+
+    let tl1_red = PinDriver::output(peripherals.pins.gpio26)?;
+    let tl1_yellow = PinDriver::output(peripherals.pins.gpio27)?;
+    let tl1_green = PinDriver::output(peripherals.pins.gpio14)?;
+
+    let mut tl1 = TrafficLight {
+        red: tl1_red,
+        yellow: tl1_yellow,
+        green: tl1_green,
+    };
 
     // Most of those have to stay alive in order to keep the connection and update the
     // clock. Do *not* drop them.
@@ -61,17 +73,18 @@ fn main() -> Result<()> {
 
     sync_time(&mut wifi, &esp_sntp)?;
 
-    main_loop(
-        cum_sum_states,
-        states,
-        sum_states,
-        &mut tl0_red,
-        &mut tl0_yellow,
-        &mut tl0_green,
-        &mut tl1_red,
-        &mut tl1_yellow,
-        &mut tl1_green,
-    )
+    main_loop(cum_sum_states, states, sum_states, vec![&mut tl0, &mut tl1])
+}
+
+struct TrafficLight<'a, R, Y, G>
+where
+    R: esp_idf_svc::hal::gpio::Pin,
+    Y: esp_idf_svc::hal::gpio::Pin,
+    G: esp_idf_svc::hal::gpio::Pin,
+{
+    pub red: PinDriver<'a, R, Output>,
+    pub yellow: PinDriver<'a, Y, Output>,
+    pub green: PinDriver<'a, G, Output>,
 }
 
 fn sum(states: &[State]) -> i64 {
@@ -102,40 +115,42 @@ enum Color {
     Red,
 }
 
-impl Color {
-    fn set_color<Pin1, Pin2, Pin3, MODE>(
-        &self,
-        tl0_red: &mut PinDriver<Pin1, MODE>,
-        tl0_yellow: &mut PinDriver<Pin2, MODE>,
-        tl0_green: &mut PinDriver<Pin3, MODE>,
-    ) -> Result<()>
-    where
-        Pin1: esp_idf_svc::hal::gpio::Pin,
-        Pin2: esp_idf_svc::hal::gpio::Pin,
-        Pin3: esp_idf_svc::hal::gpio::Pin,
-        MODE: esp_idf_svc::hal::gpio::OutputMode,
-    {
-        match self {
+trait ColorSetter {
+    fn set_color(&mut self, color: &Color) -> Result<()>;
+}
+
+impl<'a, R, Y, G> ColorSetter for TrafficLight<'a, R, Y, G>
+where
+    R: esp_idf_svc::hal::gpio::Pin,
+    Y: esp_idf_svc::hal::gpio::Pin,
+    G: esp_idf_svc::hal::gpio::Pin,
+{
+    fn set_color(&mut self, color: &Color) -> Result<()> {
+        match color {
             Color::Green => {
-                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_red, tl0_yellow))?;
-                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_green, tl0_yellow))?;
+                let is_allowed_from_low =
+                    can_yellow_go_low(set_low_safe(&mut self.red, &mut self.yellow))?;
+                let is_allowed_from_high =
+                    can_yellow_go_low(set_high_safe(&mut self.green, &mut self.yellow))?;
 
                 if is_allowed_from_low && is_allowed_from_high {
-                    _ = tl0_yellow.set_low();
+                    _ = self.yellow.set_low();
                 }
             }
             Color::Yellow => {
-                _ = set_low_safe(tl0_red, tl0_yellow);
-                _ = set_low_safe(tl0_green, tl0_yellow);
+                _ = set_low_safe(&mut self.red, &mut self.yellow);
+                _ = set_low_safe(&mut self.green, &mut self.yellow);
 
-                tl0_yellow.set_high()?;
+                self.yellow.set_high()?;
             }
             Color::Red => {
-                let is_allowed_from_low = can_yellow_go_low(set_low_safe(tl0_green, tl0_yellow))?;
-                let is_allowed_from_high = can_yellow_go_low(set_high_safe(tl0_red, tl0_yellow))?;
+                let is_allowed_from_low =
+                    can_yellow_go_low(set_low_safe(&mut self.green, &mut self.yellow))?;
+                let is_allowed_from_high =
+                    can_yellow_go_low(set_high_safe(&mut self.red, &mut self.yellow))?;
 
                 if is_allowed_from_low && is_allowed_from_high {
-                    _ = tl0_yellow.set_low();
+                    _ = self.yellow.set_low();
                 }
             }
         }
@@ -149,12 +164,7 @@ fn main_loop(
     cum_sum_stages: Vec<i64>,
     states: Vec<State>,
     sum_stages: i64,
-    tl0_red: &mut PinDriver<'_, Gpio16, Output>,
-    tl0_yellow: &mut PinDriver<'_, Gpio4, Output>,
-    tl0_green: &mut PinDriver<'_, Gpio0, Output>,
-    tl1_red: &mut PinDriver<'_, Gpio26, Output>,
-    tl1_yellow: &mut PinDriver<'_, Gpio27, Output>,
-    tl1_green: &mut PinDriver<'_, Gpio14, Output>,
+    mut tls: Vec<&mut dyn ColorSetter>,
 ) -> Result<()> {
     loop {
         let now = std::time::SystemTime::now();
@@ -162,16 +172,8 @@ fn main_loop(
 
         for (cum_sum, state) in cum_sum_stages.iter().zip(&states) {
             if ((elapsed_since_epoch.as_secs() as i64 - OFFSET) % sum_stages) < *cum_sum {
-                for (i, tl_color) in state.traffic_lights.iter().enumerate() {
-                    match i {
-                        0 => {
-                            tl_color.set_color(tl0_red, tl0_yellow, tl0_green)?;
-                        }
-                        1 => {
-                            tl_color.set_color(tl1_red, tl1_yellow, tl1_green)?;
-                        }
-                        _ => unreachable!(),
-                    };
+                for (tl, color) in tls.iter_mut().zip(&state.traffic_lights) {
+                    tl.set_color(color)?;
                 }
 
                 break;
