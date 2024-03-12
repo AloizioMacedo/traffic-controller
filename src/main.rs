@@ -92,14 +92,16 @@ fn main_loop(
         let now = std::time::SystemTime::now();
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        for (cum_sum, state) in cum_sum_stages.iter().zip(&states) {
-            if ((elapsed_since_epoch.as_secs() as i64 - OFFSET) % sum_stages) < *cum_sum {
-                for (tl, color) in tls.iter_mut().zip(&state.traffic_lights) {
-                    tl.set_color(color)?;
-                }
+        let (_, state) = cum_sum_stages
+            .iter()
+            .zip(&states)
+            .find(|(cum_sum, _)| {
+                (elapsed_since_epoch.as_secs() as i64 - OFFSET) % sum_stages < **cum_sum
+            })
+            .expect("(sum % sum_stages) should always be less than some cum_sum");
 
-                break;
-            }
+        for (tl, color) in tls.iter_mut().zip(&state.traffic_lights) {
+            tl.set_color(color)?;
         }
 
         FreeRtos::delay_ms(100);
