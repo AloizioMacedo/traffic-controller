@@ -12,7 +12,7 @@ use log::LevelFilter;
 // Wi-Fi
 use esp_idf_svc::eventloop::*;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
-use esp_idf_svc::sntp::{self};
+use esp_idf_svc::sntp;
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
 use tl::{build_traffic_lights, ColorSetter, State};
