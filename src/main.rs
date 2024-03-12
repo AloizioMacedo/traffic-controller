@@ -4,7 +4,7 @@ mod utils;
 mod wifi;
 
 use anyhow::Result;
-use config_parser::parse_config;
+use config_parser::{parse_config, Config};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use log::LevelFilter;
@@ -21,8 +21,6 @@ use wifi::sync_time;
 
 const CONFIG: &str = include_str!("../tl.config");
 
-const OFFSET: i64 = 0;
-
 const LOG_MAX_LEVEL: LevelFilter = LevelFilter::Info;
 
 fn main() -> Result<()> {
@@ -33,6 +31,8 @@ fn main() -> Result<()> {
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
     log::set_max_level(LOG_MAX_LEVEL);
+
+    let Config { states, offset } = parse_config(CONFIG)?;
 
     let peripherals = Peripherals::take()?;
 
@@ -46,13 +46,12 @@ fn main() -> Result<()> {
 
     sync_time(&mut wifi, &esp_sntp)?;
 
-    let states = parse_config(CONFIG)?;
     let sum_states: i64 = sum(&states);
     let cum_sum_states = cum_sum(&states);
 
     let tls = build_traffic_lights(peripherals.pins)?;
 
-    main_loop(states, sum_states, cum_sum_states, tls)
+    main_loop(states, offset, sum_states, cum_sum_states, tls)
 }
 
 struct State {
@@ -62,6 +61,7 @@ struct State {
 
 fn main_loop(
     states: Vec<State>,
+    offset: i64,
     sum_states: i64,
     cum_sum_states: Vec<i64>,
     mut tls: Vec<Box<dyn ColorSetter>>,
@@ -74,7 +74,7 @@ fn main_loop(
             .iter()
             .zip(&states)
             .find(|(cum_sum, _)| {
-                (elapsed_since_epoch.as_secs() as i64 - OFFSET) % sum_states < **cum_sum
+                (elapsed_since_epoch.as_secs() as i64 - offset) % sum_states < **cum_sum
             })
             .expect("(sum % sum_stages) should always be less than some cum_sum");
 

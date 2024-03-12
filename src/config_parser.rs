@@ -2,6 +2,11 @@ use anyhow::{anyhow, Result};
 
 use crate::{tl::Color, State};
 
+pub struct Config {
+    pub states: Vec<State>,
+    pub offset: i64,
+}
+
 impl TryFrom<char> for Color {
     type Error = anyhow::Error;
 
@@ -32,6 +37,22 @@ fn parse_line(line: &str) -> Result<State> {
     })
 }
 
-pub fn parse_config(config: &str) -> Result<Vec<State>> {
-    config.lines().map(parse_line).collect()
+pub fn parse_config(config: &str) -> Result<Config> {
+    let mut lines = config.lines().peekable();
+
+    let first_line = lines.peek().ok_or(anyhow!("empty configuration"))?;
+
+    let (offset, should_skip_first_line) = if let Ok(offset) = first_line.parse() {
+        (offset, true)
+    } else {
+        (0, false)
+    };
+
+    let states = lines
+        .skip(if should_skip_first_line { 1 } else { 0 })
+        .skip_while(|l| l.is_empty())
+        .map(parse_line)
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(Config { states, offset })
 }
