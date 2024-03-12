@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 
-use crate::{Color, State};
+use crate::{tl::Color, State};
 
 impl TryFrom<char> for Color {
     type Error = anyhow::Error;
