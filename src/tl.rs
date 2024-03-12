@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use esp_idf_svc::hal::gpio::{Output, PinDriver};
+use esp_idf_svc::hal::gpio::{Output, PinDriver, Pins};
 use thiserror::Error;
 
 pub enum Color {
@@ -21,6 +21,30 @@ where
     pub red: PinDriver<'a, R, Output>,
     pub yellow: PinDriver<'a, Y, Output>,
     pub green: PinDriver<'a, G, Output>,
+}
+
+pub fn build_traffic_lights(pins: Pins) -> Result<Vec<Box<dyn ColorSetter>>> {
+    let tl0_red = PinDriver::output(pins.gpio16)?;
+    let tl0_yellow = PinDriver::output(pins.gpio4)?;
+    let tl0_green = PinDriver::output(pins.gpio0)?;
+
+    let tl0 = TrafficLight {
+        red: tl0_red,
+        yellow: tl0_yellow,
+        green: tl0_green,
+    };
+
+    let tl1_red = PinDriver::output(pins.gpio26)?;
+    let tl1_yellow = PinDriver::output(pins.gpio27)?;
+    let tl1_green = PinDriver::output(pins.gpio14)?;
+
+    let tl1 = TrafficLight {
+        red: tl1_red,
+        yellow: tl1_yellow,
+        green: tl1_green,
+    };
+
+    Ok(vec![Box::new(tl0), Box::new(tl1)])
 }
 
 impl<'a, R, Y, G> ColorSetter for TrafficLight<'a, R, Y, G>
