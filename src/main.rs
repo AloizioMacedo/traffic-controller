@@ -49,9 +49,9 @@ fn main() -> Result<()> {
     let sum_states: i64 = sum(&states);
     let cum_sum_states = cum_sum(&states);
 
-    let tls = build_traffic_lights(peripherals.pins)?;
+    let mut tls = build_traffic_lights(peripherals.pins)?;
 
-    main_loop(states, offset, sum_states, cum_sum_states, tls)
+    main_loop(&states, offset, sum_states, &cum_sum_states, &mut tls)
 }
 
 struct State {
@@ -60,11 +60,11 @@ struct State {
 }
 
 fn main_loop(
-    states: Vec<State>,
+    states: &[State],
     offset: i64,
     sum_states: i64,
-    cum_sum_states: Vec<i64>,
-    mut tls: Vec<Box<dyn ColorSetter>>,
+    cum_sum_states: &[i64],
+    tls: &mut [Box<dyn ColorSetter>],
 ) -> Result<()> {
     loop {
         let now = std::time::SystemTime::now();
@@ -72,7 +72,7 @@ fn main_loop(
 
         let (_, state) = cum_sum_states
             .iter()
-            .zip(&states)
+            .zip(states)
             .find(|(cum_sum, _)| {
                 (elapsed_since_epoch.as_secs() as i64 - offset) % sum_states < **cum_sum
             })
