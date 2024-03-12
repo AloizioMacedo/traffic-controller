@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 
 use crate::{tl::Color, State};
 
+const MAX_NUM_TLS: usize = 4;
+
 pub struct Config {
     pub states: Vec<State>,
     pub offset: i64,
@@ -15,7 +17,9 @@ impl TryFrom<char> for Color {
             'r' => Ok(Color::Red),
             'g' => Ok(Color::Green),
             'y' => Ok(Color::Yellow),
-            _ => Err(anyhow!("parse error in config")),
+            _ => Err(anyhow!(
+                "parse error in config: color '{value}' not recognized. Choose 'r', 'g' or 'y'"
+            )),
         }
     }
 }
@@ -53,6 +57,29 @@ pub fn parse_config(config: &str) -> Result<Config> {
         .skip_while(|l| l.is_empty())
         .map(parse_line)
         .collect::<Result<Vec<_>>>()?;
+
+    let number_of_colors = states
+        .first()
+        .map(|s| s.traffic_lights_colors.len())
+        .unwrap_or(0);
+
+    if states
+        .iter()
+        .any(|s| s.traffic_lights_colors.len() != number_of_colors)
+    {
+        return Err(anyhow!(
+            "mismatched number of traffic light colors in different lines"
+        ));
+    }
+
+    if states
+        .iter()
+        .any(|s| s.traffic_lights_colors.len() > MAX_NUM_TLS)
+    {
+        return Err(anyhow!(
+            "mismatched number of traffic light colors in different lines"
+        ));
+    }
 
     Ok(Config { states, offset })
 }
