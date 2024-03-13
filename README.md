@@ -31,6 +31,8 @@ to start at the beginning of a minute precisely.
 
 ## Configuration
 
+### States
+
 By tweaking `tl.config`, you can choose different durations and states for the controller.
 
 The syntax for `tl.config` is inspired by [SUMO](https://sumo.dlr.de/docs/Simulation/Traffic_Lights.html)
@@ -53,3 +55,21 @@ This would represent two traffic lights, where the first starts as red and the s
 as green for 20 seconds, then there is a 5-second transition (split as 3 seconds
 in yellow and 2 seconds of all-reds) into 30 seconds of the first being green and
 the second being red.
+
+### Offset
+
+You can select an *offset* for the traffic plan by putting a number on top of the
+states selections, like so:
+
+```text
+10
+
+rg 20
+ry 3
+rr 2
+gr 30
+yr 3
+rr 2
+```
+
+This establishes the point of reference to be the Unix epoch + 10 seconds.
