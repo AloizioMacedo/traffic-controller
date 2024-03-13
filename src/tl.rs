@@ -31,9 +31,9 @@ where
 }
 
 pub fn build_traffic_lights(pins: Pins) -> Result<Vec<Box<dyn ColorSetter>>> {
-    let tl0_red = PinDriver::output(pins.gpio16)?;
-    let tl0_yellow = PinDriver::output(pins.gpio4)?;
-    let tl0_green = PinDriver::output(pins.gpio0)?;
+    let tl0_red = PinDriver::output(pins.gpio26)?;
+    let tl0_yellow = PinDriver::output(pins.gpio27)?;
+    let tl0_green = PinDriver::output(pins.gpio14)?;
 
     let tl0 = TrafficLight {
         red: tl0_red,
@@ -41,9 +41,9 @@ pub fn build_traffic_lights(pins: Pins) -> Result<Vec<Box<dyn ColorSetter>>> {
         green: tl0_green,
     };
 
-    let tl1_red = PinDriver::output(pins.gpio26)?;
-    let tl1_yellow = PinDriver::output(pins.gpio27)?;
-    let tl1_green = PinDriver::output(pins.gpio14)?;
+    let tl1_red = PinDriver::output(pins.gpio16)?;
+    let tl1_yellow = PinDriver::output(pins.gpio4)?;
+    let tl1_green = PinDriver::output(pins.gpio0)?;
 
     let tl1 = TrafficLight {
         red: tl1_red,
