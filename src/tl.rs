@@ -51,7 +51,17 @@ pub fn build_traffic_lights(pins: Pins) -> Result<Vec<Box<dyn ColorSetter>>> {
         green: tl1_green,
     };
 
-    Ok(vec![Box::new(tl0), Box::new(tl1)])
+    let tl2_red = PinDriver::output(pins.gpio32)?;
+    let tl2_yellow = PinDriver::output(pins.gpio33)?;
+    let tl2_green = PinDriver::output(pins.gpio25)?;
+
+    let tl2 = TrafficLight {
+        red: tl2_red,
+        yellow: tl2_yellow,
+        green: tl2_green,
+    };
+
+    Ok(vec![Box::new(tl0), Box::new(tl1), Box::new(tl2)])
 }
 
 impl<'a, R, Y, G> ColorSetter for TrafficLight<'a, R, Y, G>

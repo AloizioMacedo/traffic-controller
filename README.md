@@ -56,6 +56,8 @@ as green for 20 seconds, then there is a 5-second transition (split as 3 seconds
 in yellow and 2 seconds of all-reds) into 30 seconds of the first being green and
 the second being red.
 
+There is a current limit of 3 traffic lights.
+
 ### Offset
 
 You can select an *offset* for the traffic plan by putting a number on top of the

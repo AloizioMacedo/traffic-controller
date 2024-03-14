@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 
 use crate::{tl::Color, State};
 
-const MAX_NUM_TLS: usize = 4;
+const MAX_NUM_TLS: usize = 3;
 
 pub struct Config {
     pub states: Vec<State>,
@@ -77,7 +77,7 @@ pub fn parse_config(config: &str) -> Result<Config> {
         .any(|s| s.traffic_lights_colors.len() > MAX_NUM_TLS)
     {
         return Err(anyhow!(
-            "mismatched number of traffic light colors in different lines"
+            "over maximum number of traffic lights: {MAX_NUM_TLS}"
         ));
     }
 
