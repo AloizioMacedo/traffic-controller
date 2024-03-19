@@ -93,6 +93,27 @@
       "top": 109.55,
       "left": -67.2,
       "attrs": { "value": "1000" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-red2",
+      "top": -51.6,
+      "left": -63.4,
+      "attrs": { "color": "red", "flip": "" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-yellow2",
+      "top": -42,
+      "left": -73,
+      "attrs": { "color": "yellow", "flip": "" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led-green2",
+      "top": -32.4,
+      "left": -82.6,
+      "attrs": { "color": "green", "flip": "" }
     }
   ],
   "connections": [
@@ -124,7 +145,13 @@
     [ "r6:2", "esp:D26", "green", [ "v0" ] ],
     [ "led-green1:C", "esp:GND.2", "black", [ "v0" ] ],
     [ "led-yellow1:C", "esp:GND.2", "black", [ "v0" ] ],
-    [ "led-red1:C", "esp:GND.2", "black", [ "v0" ] ]
+    [ "led-red1:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "led-red2:A", "esp:D32", "green", [ "v0" ] ],
+    [ "led-yellow2:A", "esp:D33", "green", [ "v0" ] ],
+    [ "led-green2:A", "esp:D25", "green", [ "v0" ] ],
+    [ "led-green2:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "led-yellow2:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "led-red2:C", "esp:GND.2", "black", [ "v0" ] ]
   ],
   "serialMonitor": { "display": "terminal" },
   "dependencies": {}
