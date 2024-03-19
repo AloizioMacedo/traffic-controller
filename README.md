@@ -9,6 +9,8 @@ could theoretically be coordinated with others.
 A `README.md` file more directly related to the whole setup can be seen in
 `docs/README.md`,
 
+[Video in real life](https://github.com/AloizioMacedo/traffic-controller/assets/15199609/20d75654-0721-490f-aaea-f39c710be9ce)
+
 ## How to run
 
 The best way to run this out of the box is using a dev container in VSCode.
