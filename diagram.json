@@ -118,7 +118,13 @@
     [ "led-green:C", "esp:GND.1", "black", [ "v0" ] ],
     [ "r1:1", "esp:D21", "green", [ "v0" ] ],
     [ "esp:D19", "r2:1", "green", [ "h0" ] ],
-    [ "esp:D18", "r3:1", "green", [ "h0" ] ]
+    [ "esp:D18", "r3:1", "green", [ "h0" ] ],
+    [ "r4:2", "esp:D13", "green", [ "v0" ] ],
+    [ "r5:2", "esp:D27", "green", [ "v0" ] ],
+    [ "r6:2", "esp:D26", "green", [ "v0" ] ],
+    [ "led-green1:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "led-yellow1:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "led-red1:C", "esp:GND.2", "black", [ "v0" ] ]
   ],
   "serialMonitor": { "display": "terminal" },
   "dependencies": {}
