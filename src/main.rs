@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     let mut wifi = BlockingWifi::wrap(EspWifi::new(modem, sysloop.clone(), Some(nvs))?, sysloop)?;
     let esp_sntp = sntp::EspSntp::new_default()?;
 
-    sync_time(&mut wifi, &esp_sntp)?;
+    // sync_time(&mut wifi, &esp_sntp)?;
 
     let sum_states: i64 = sum(&states);
     let cum_sum_states = cum_sum(&states);
