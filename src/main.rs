@@ -16,7 +16,7 @@ use esp_idf_svc::sntp;
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::wifi::*;
 use tl::{build_traffic_lights, ColorSetter, State};
-use utils::{cum_sum, sum};
+use utils::{cumulative_sum, sum};
 use wifi::sync_time;
 
 const CONFIG: &str = include_str!("../tl.config");
@@ -47,31 +47,37 @@ fn main() -> Result<()> {
     // sync_time(&mut wifi, &esp_sntp)?;
 
     let sum_states: i64 = sum(&states);
-    let cum_sum_states = cum_sum(&states);
+    let cumulative_sum_states = cumulative_sum(&states);
 
     let mut tls = build_traffic_lights(peripherals.pins)?;
 
-    main_loop(&states, offset, sum_states, &cum_sum_states, &mut tls)
+    main_loop(
+        &states,
+        offset,
+        sum_states,
+        &cumulative_sum_states,
+        &mut tls,
+    )
 }
 
 fn main_loop(
     states: &[State],
     offset: i64,
     sum_states: i64,
-    cum_sum_states: &[i64],
+    cumulative_sum_states: &[i64],
     tls: &mut [Box<dyn ColorSetter>],
 ) -> Result<()> {
     loop {
         let now = std::time::SystemTime::now();
         let elapsed_since_epoch = now.duration_since(std::time::SystemTime::UNIX_EPOCH)?;
 
-        let (_, state) = cum_sum_states
+        let (_, state) = cumulative_sum_states
             .iter()
             .zip(states)
-            .find(|(cum_sum, _)| {
-                (elapsed_since_epoch.as_secs() as i64 - offset) % sum_states < **cum_sum
+            .find(|(cumulative_sum, _)| {
+                (elapsed_since_epoch.as_secs() as i64 - offset) % sum_states < **cumulative_sum
             })
-            .expect("(sum % sum_stages) should always be less than some cum_sum");
+            .expect("(sum % sum_stages) should always be less than some cumulative_sum");
 
         for (tl, color) in tls.iter_mut().zip(&state.traffic_lights_colors) {
             tl.set_color(color)?;
